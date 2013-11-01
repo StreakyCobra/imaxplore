@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
+from imaxplore.Util.Geometry import lieIntoTriangle, allSameSide
+
+from PyQt4 import QtGui
+
 import numpy as np
 import matplotlib.image as mpimg
-from PyQt4 import QtGui
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
@@ -10,10 +13,10 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 class ImageWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(ImageWidget, self).__init__(parent)
-        self.initUI()
+        self._initUI()
 
     # Initialize the UI
-    def initUI(self):
+    def _initUI(self):
         # Create the figure
         self._fig = Figure()
 
@@ -75,7 +78,8 @@ class ImageWidget(QtGui.QWidget):
         if len(self._points) > 0:
             xs = [x for (x, _) in self._points]
             ys = [y for (_, y) in self._points]
-            self._plt.plot(xs + [xs[0]], ys + [ys[0]], 'o-', color='red')
+            self._plt.plot(xs + [xs[0]], ys + [ys[0]], '-', color='red')
+            self._plt.plot(xs + [xs[0]], ys + [ys[0]], 'o', color='blue')
 
         # Draw the canvas
         self._canvas.draw()
@@ -118,56 +122,57 @@ class ImageWidget(QtGui.QWidget):
             return
 
         # If already 4 points, ignore it
-        if n == 4:
+        if n >= 4:
             return
 
         # Else a verification must be done
-        if not self._lieIntoTriangle(x, y):
+        if self._validPoint(x, y):
             self._points.append((x, y))
 
-        # Reorder points to have consistant rectangle when drawing
-        self._reorderPoints()
+            # Reorder points to have consistant rectangle when drawing
+            self._reorderPoints()
 
     # Remove an existing point
     def _removePoint(self, x, y):
-        self._points = list(filter(lambda v: v != (x,y), self._points))
-
-    # Check if the last points lie into the triangle formed by other ones
-    def _lieIntoTriangle(self, x, y):
-        # Shortcut to access points
-        x1, y1 = self._points[0]
-        x2, y2 = self._points[1]
-        x3, y3 = self._points[2]
-
-        # Compute barycentric alpha
-        alpha = ((y2 - y3) * (x - x3) + (x3 - x2) * (y - y3)) /\
-                ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3))
-
-        # If alpha smaller than 0 then outside the triangle
-        if alpha <= 0:
-            return False
-
-        # Compute barycentric beta
-        beta = ((y3 - y1) * (x - x3) + (x1 - x3) * (y - y3)) /\
-               ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3))
-
-        # If beta smaller than 0 then outside the triangle
-        if beta <= 0:
-            return False
-
-        # Compute barycentric gamma
-        gamma = 1.0 - alpha - beta
-
-        # If gamma smaller than 0 then outside the triangle
-        if gamma <= 0:
-            return False
-
-        # Else inside the triangle
-        return True
+        self._points = list(filter(lambda v: v != (x, y), self._points))
 
     # Reorder points to have a planar graph (meaning no line crossing)
     def _reorderPoints(self):
-        p1 = self._points[0]
-        others = list(filter(lambda v: v != p1, self._points))
-        pass
+        # List of reordoned points
+        ordPoints = [self._points[0]]
 
+        # List of selectionnable points
+        others = self._points[1:]
+
+        # Fill reordoned points
+        while len(ordPoints) < 4:
+            # Previous point
+            p = ordPoints[-1]
+
+            # Test other points
+            for pn in others:
+                # Points to verify side
+                verify = list(filter(lambda v: v != pn and v != p,
+                                     self._points))
+
+                # Verify side
+                if allSameSide(p, pn, verify):
+                    ordPoints.append(pn)
+                    others = list(filter(lambda v: v != pn, others))
+                    break
+
+        # Set the reordoned points
+        self._points = ordPoints
+
+    def _validPoint(self, x, y):
+        a = [p for p in self._points] + [(x, y)]
+        triangles = [[a[0], a[1], a[2]], [a[0], a[1], a[3]],
+                     [a[0], a[2], a[3]], [a[1], a[2], a[3]]]
+        points = [a[3], a[2], a[1], a[0]]
+
+        for triangle, point in zip(triangles, points):
+            px, py = point
+            if lieIntoTriangle(triangle, px, py):
+                return False
+
+        return True
