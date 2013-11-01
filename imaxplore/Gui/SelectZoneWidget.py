@@ -3,6 +3,7 @@
 from imaxplore.Util.Geometry import lieIntoTriangle, allSameSide
 
 from PyQt4 import QtGui
+from PyQt4.QtCore import pyqtSignal
 
 import numpy as np
 from matplotlib.figure import Figure
@@ -10,9 +11,17 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
 
 class SelectZoneWidget(QtGui.QWidget):
+
+    _imageChanged = pyqtSignal(np.ndarray)
+    _imageReset = pyqtSignal()
+    _homographyChanged = pyqtSignal(list)
+
     def __init__(self, hWidget, parent=None):
         super(SelectZoneWidget, self).__init__(parent)
         self._hWidget = hWidget
+        self._imageChanged.connect(self._hWidget.setImage)
+        self._homographyChanged.connect(self._hWidget.setHomography)
+        self._imageReset.connect(self._hWidget.reset)
         self._initUI()
 
     # Initialize the UI
@@ -53,6 +62,7 @@ class SelectZoneWidget(QtGui.QWidget):
         self._canvas.hide()
         self._image = None
         self._points = []
+        self._imageReset.emit()
 
     # Set an image to the widget
     def setImage(self, image):
@@ -60,6 +70,7 @@ class SelectZoneWidget(QtGui.QWidget):
         self._image = image
         self._redraw()
         self._canvas.show()
+        self._imageChanged.emit(image)
 
     # Get the image of the widget
     def getImage(self):
@@ -129,13 +140,22 @@ class SelectZoneWidget(QtGui.QWidget):
 
         # Else a verification must be done
         if self._validPoint(x, y):
+            # Add the point
             self._points.append((x, y))
 
             # Reorder points to have consistant rectangle when drawing
             self._reorderPoints()
 
+            # Lunch the homography
+            self._homographyChanged.emit(self._points)
+
     # Remove an existing point
     def _removePoint(self, x, y):
+        # Reset homograpy if we remove the 4th point
+        if len(self._points) == 4:
+            self._imageChanged.emit(self._image)
+
+        # Remove the point
         self._points = list(filter(lambda v: v != (x, y), self._points))
 
     # Reorder points to have a planar graph (meaning no line crossing)
