@@ -2,7 +2,6 @@
 
 import numpy as np
 import matplotlib.image as mpimg
-from functools import cmp_to_key
 from PyQt4 import QtGui
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -13,86 +12,162 @@ class ImageWidget(QtGui.QWidget):
         super(ImageWidget, self).__init__(parent)
         self.initUI()
 
+    # Initialize the UI
     def initUI(self):
         # Create the figure
-        self.fig = Figure()
+        self._fig = Figure()
 
         # Canvas configuration
-        self.canvas = FigureCanvas(self.fig)
-        self.canvas.setParent(self)
-        self.canvas.mpl_connect('button_press_event', self.onPick)
+        self._canvas = FigureCanvas(self._fig)
+        self._canvas.setParent(self)
+        self._canvas.mpl_connect('button_press_event', self._onPick)
 
-        # Figure configuration
-        self.plt = self.fig.add_subplot(111)
-        self.plt.xaxis.set_visible(False)
-        self.plt.yaxis.set_visible(False)
+        # Plot configuration
+        self._plt = self._fig.add_subplot(111)
+        self._plt.xaxis.set_visible(False)
+        self._plt.yaxis.set_visible(False)
 
         # Finalize figure
-        self.fig.subplots_adjust(wspace=0, hspace=0)
+        self._fig.subplots_adjust(wspace=0, hspace=0)
 
-        # Initialize variables
-        self.image = None
-        self.points = []
+        # Reset the variables
+        self.reset()
 
         # Create the layout
         vbox = QtGui.QVBoxLayout()
 
-        # Add it to the layout
-        vbox.addWidget(self.canvas)
+        # Add Canvas to the layout
+        vbox.addWidget(self._canvas)
 
-        # Set layout
+        # Set the layout
         self.setLayout(vbox)
 
-    def openImage(self):
-        fName = QtGui.QFileDialog.getOpenFileName(self, 'Select image', '')
+    # Reset the variables to original state
+    def reset(self):
+        self._image = None
+        self._points = []
+        self._canvas.hide()
 
+    # Set an image to the widget
+    def setImage(self, fName):
         if fName is not '':
-            self.image = mpimg.imread(fName)
-            self.points = []
-            self.redraw()
+            self._image = mpimg.imread(fName)
+            self._points = []
+            self._redraw()
+            self._canvas.show()
 
-    def saveImage(self):
+    # Get the image of the widget
+    def getImage(self):
         pass
 
-    def redraw(self):
+    # Redraw the image and points
+    def _redraw(self):
         # Clear the canvas
-        self.plt.clear()
+        self._plt.clear()
 
         # Plot the image
-        if self.image is not None:
-            self.plt.autoscale(True)
-            self.plt.imshow(self.image)
-            self.plt.autoscale(False)
+        if self._image is not None:
+            self._plt.autoscale(True)
+            self._plt.imshow(self._image)
+            self._plt.autoscale(False)
 
         # Plot the points
-        if len(self.points) > 0:
-            xs = [x for (x,_) in self.points]
-            ys = [y for (_,y) in self.points]
-            self.plt.plot(xs + [xs[0]], ys + [ys[0]], 'o-', color='red')
+        if len(self._points) > 0:
+            xs = [x for (x, _) in self._points]
+            ys = [y for (_, y) in self._points]
+            self._plt.plot(xs + [xs[0]], ys + [ys[0]], 'o-', color='red')
 
         # Draw the canvas
-        self.canvas.draw()
+        self._canvas.draw()
 
-    def onPick(self, event):
+    # Handle click events
+    def _onPick(self, event):
         # Get point position
         x = event.xdata
         y = event.ydata
 
+        if x is None or y is None:
+            return
+
         # For each existing points
-        for pt in self.points:
-            # Get point position
-            px, py = pt
+        for px, py in self._points:
 
             # Compute distance to current point
-            dst = np.sqrt((px - x) ** 2 + (py -y) ** 2)
+            dst = np.sqrt((px - x) ** 2 + (py - y) ** 2)
 
             # If the distance is small remove it
             if dst < 10:
-                self.points = list(filter(lambda v: v != pt, self.points))
-                self.redraw()
+                self._removePoint(px, py)
+                self._redraw()
                 return
 
-        if len(self.points) < 4:
-            self.points.append((x,y))
+        # Add the points
+        self._addPoint(x, y)
 
-        self.redraw()
+        # Redraw the image
+        self._redraw()
+
+    # Add a new points
+    def _addPoint(self, x, y):
+        # Count points
+        n = len(self._points)
+
+        # If less than 3 points just add it
+        if n < 3:
+            self._points.append((x, y))
+            return
+
+        # If already 4 points, ignore it
+        if n == 4:
+            return
+
+        # Else a verification must be done
+        if not self._lieIntoTriangle(x, y):
+            self._points.append((x, y))
+
+        # Reorder points to have consistant rectangle when drawing
+        self._reorderPoints()
+
+    # Remove an existing point
+    def _removePoint(self, x, y):
+        self._points = list(filter(lambda v: v != (x,y), self._points))
+
+    # Check if the last points lie into the triangle formed by other ones
+    def _lieIntoTriangle(self, x, y):
+        # Shortcut to access points
+        x1, y1 = self._points[0]
+        x2, y2 = self._points[1]
+        x3, y3 = self._points[2]
+
+        # Compute barycentric alpha
+        alpha = ((y2 - y3) * (x - x3) + (x3 - x2) * (y - y3)) /\
+                ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3))
+
+        # If alpha smaller than 0 then outside the triangle
+        if alpha <= 0:
+            return False
+
+        # Compute barycentric beta
+        beta = ((y3 - y1) * (x - x3) + (x1 - x3) * (y - y3)) /\
+               ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3))
+
+        # If beta smaller than 0 then outside the triangle
+        if beta <= 0:
+            return False
+
+        # Compute barycentric gamma
+        gamma = 1.0 - alpha - beta
+
+        # If gamma smaller than 0 then outside the triangle
+        if gamma <= 0:
+            return False
+
+        # Else inside the triangle
+        return True
+
+    # Reorder points to have a planar graph (meaning no line crossing)
+    def _reorderPoints(self):
+        p1 = self._points[0]
+        others = list(filter(lambda v: v != p1, self._points))
+        pass
+

@@ -21,13 +21,19 @@ class MainWindow(QtGui.QMainWindow):
         openAction = QtGui.QAction(_(u'&Open'), self)
         openAction.setShortcut(_(u'Ctrl+O'))
         openAction.setStatusTip(_(u'Open an image'))
-        openAction.triggered.connect(self.imageWidget.openImage)
+        openAction.triggered.connect(self.openImage)
+
+        # Close action
+        closeAction = QtGui.QAction(_(u'&Close'), self)
+        closeAction.setShortcut(_(u'Ctrl+W'))
+        closeAction.setStatusTip(_(u'Close the current image'))
+        closeAction.triggered.connect(self.closeImage)
 
         # Save action
         saveAction = QtGui.QAction(_(u'&Save'), self)
         saveAction.setShortcut(_(u'Ctrl+S'))
         saveAction.setStatusTip(_(u'Save an image'))
-        saveAction.triggered.connect(self.imageWidget.saveImage)
+        saveAction.triggered.connect(self.saveImage)
 
         # Exit action
         exitAction = QtGui.QAction(_(u'&Exit'), self)
@@ -42,8 +48,19 @@ class MainWindow(QtGui.QMainWindow):
         menubar = self.menuBar()
         fileMenu = menubar.addMenu(_(u'&File'))
         fileMenu.addAction(openAction)
+        fileMenu.addAction(closeAction)
         fileMenu.addAction(saveAction)
         fileMenu.addAction(exitAction)
 
         # Show the windows
         self.show()
+
+    def openImage(self):
+        fName = QtGui.QFileDialog.getOpenFileName(self, 'Select image', '')
+        self.imageWidget.setImage(fName)
+
+    def closeImage(self):
+        self.imageWidget.reset()
+
+    def saveImage(self):
+        pass
