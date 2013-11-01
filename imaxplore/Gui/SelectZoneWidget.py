@@ -5,18 +5,21 @@ from imaxplore.Util.Geometry import lieIntoTriangle, allSameSide
 from PyQt4 import QtGui
 
 import numpy as np
-import matplotlib.image as mpimg
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
 
-class ImageWidget(QtGui.QWidget):
-    def __init__(self, parent=None):
-        super(ImageWidget, self).__init__(parent)
+class SelectZoneWidget(QtGui.QWidget):
+    def __init__(self, hWidget, parent=None):
+        super(SelectZoneWidget, self).__init__(parent)
+        self._hWidget = hWidget
         self._initUI()
 
     # Initialize the UI
     def _initUI(self):
+        # Widget parameters
+        self.setMinimumWidth(300)
+
         # Create the figure
         self._fig = Figure()
 
@@ -47,17 +50,16 @@ class ImageWidget(QtGui.QWidget):
 
     # Reset the variables to original state
     def reset(self):
+        self._canvas.hide()
         self._image = None
         self._points = []
-        self._canvas.hide()
 
     # Set an image to the widget
-    def setImage(self, fName):
-        if fName is not '':
-            self._image = mpimg.imread(fName)
-            self._points = []
-            self._redraw()
-            self._canvas.show()
+    def setImage(self, image):
+        self.reset()
+        self._image = image
+        self._redraw()
+        self._canvas.show()
 
     # Get the image of the widget
     def getImage(self):
@@ -105,13 +107,13 @@ class ImageWidget(QtGui.QWidget):
                 self._redraw()
                 return
 
-        # Add the points
+        # Delegate to add the point
         self._addPoint(x, y)
 
         # Redraw the image
         self._redraw()
 
-    # Add a new points
+    # Add a new point
     def _addPoint(self, x, y):
         # Count points
         n = len(self._points)

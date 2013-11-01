@@ -1,21 +1,35 @@
 # -*- coding: utf-8 -*-
 
-from PyQt4 import QtGui
+from PyQt4 import QtGui, QtCore
+
 from imaxplore.Core.Configuration import conf
-from imaxplore.Gui.ImageWidget import ImageWidget
+from imaxplore.Gui.SelectZoneWidget import SelectZoneWidget
+from imaxplore.Gui.HomographyWidget import HomographyWidget
+
+import matplotlib.image as mpimg
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+
 
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-        self.initUI()
+        self._initUI()
 
-    def initUI(self):
+    def _initUI(self):
+        # Window paramters
         self.setWindowTitle(conf('app_name'))
 
-        # Central Widget
-        self.imageWidget = ImageWidget(self)
-        self.setCentralWidget(self.imageWidget)
+        # Widgets
+        self._hWidget = HomographyWidget(parent=self)
+        self._szWidget = SelectZoneWidget(self._hWidget, parent=self)
+
+        # Splitter
+        self._split = QtGui.QSplitter(QtCore.Qt.Horizontal, self)
+        self._split.addWidget(self._szWidget)
+        self._split.addWidget(self._hWidget)
+        self._split.setCollapsible(0, True)
+        self._split.setCollapsible(1, True)
+        self.setCentralWidget(self._split)
 
         # Open action
         openAction = QtGui.QAction(_(u'&Open'), self)
@@ -57,10 +71,11 @@ class MainWindow(QtGui.QMainWindow):
 
     def openImage(self):
         fName = QtGui.QFileDialog.getOpenFileName(self, 'Select image', '')
-        self.imageWidget.setImage(fName)
+        if fName is not '':
+            self._szWidget.setImage(mpimg.imread(fName))
 
     def closeImage(self):
-        self.imageWidget.reset()
+        self._szWidget.reset()
 
     def saveImage(self):
         pass
